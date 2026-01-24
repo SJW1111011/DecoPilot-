@@ -1,6 +1,6 @@
-# 装修智能顾问 (Decoration RAG Agent)
+# DecoPilot (智装领航)
 
-这是一个基于 RAG (Retrieval-Augmented Generation) 技术的智能装修顾问问答系统。它使用 LangChain、ChromaDB 和 DashScope (通义千问) 构建，能够根据本地知识库回答用户的装修相关问题。
+**DecoPilot** 是您的智能装修顾问（原名：装修智能顾问）。它基于 RAG (Retrieval-Augmented Generation) 技术，使用 LangChain、ChromaDB 和 DashScope (通义千问) 构建，能够根据本地知识库回答您的装修难题。
 
 ## 项目结构
 
