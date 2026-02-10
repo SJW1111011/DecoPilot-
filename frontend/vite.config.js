@@ -9,6 +9,10 @@ export default defineConfig({
       '/chat_stream': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+      },
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
       }
     }
   }

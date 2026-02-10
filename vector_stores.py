@@ -3,14 +3,16 @@ import config_data as config
 
 
 class VectorStoreService(object):
-    def __init__(self, embedding):
+    def __init__(self, embedding, collection_name: str = None):
         """
         :param embedding: 嵌入模型的传入
+        :param collection_name: 集合名称，默认使用配置中的默认集合
         """
         self.embedding = embedding
+        self.collection_name = collection_name or config.default_collection_name
 
         self.vector_store = Chroma(
-            collection_name=config.collection_name,
+            collection_name=self.collection_name,
             embedding_function=self.embedding,
             persist_directory=config.persist_directory,
         )

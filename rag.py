@@ -1,8 +1,12 @@
 import os
 import datetime
+import sys
 # Load env for DashScope
 from dotenv import load_dotenv
 load_dotenv()
+
+# 添加backend目录到路径
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend"))
 
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
@@ -16,6 +20,13 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_models.tongyi import ChatTongyi
 from langchain_community.tools import DuckDuckGoSearchRun
 
+# 尝试导入多集合知识库
+try:
+    from backend.knowledge.multi_collection_kb import MultiCollectionKB
+    MULTI_KB_AVAILABLE = True
+except ImportError:
+    MULTI_KB_AVAILABLE = False
+
 
 def print_prompt(prompt):
     print("="*20)
@@ -27,11 +38,26 @@ def print_prompt(prompt):
 
 
 class RagService(object):
-    def __init__(self):
+    def __init__(self, user_type: str = "both"):
+        """
+        初始化RAG服务
+
+        Args:
+            user_type: 用户类型 (c_end|b_end|both)，用于多集合检索
+        """
         # Ensure env var is set from config if not already
         if not os.environ.get("DASHSCOPE_API_KEY") and config.dashscope_api_key:
             os.environ["DASHSCOPE_API_KEY"] = config.dashscope_api_key
 
+        self.user_type = user_type
+
+        # 初始化多集合知识库（如果可用）
+        if MULTI_KB_AVAILABLE:
+            self.multi_kb = MultiCollectionKB()
+        else:
+            self.multi_kb = None
+
+        # 保留原有的单集合向量服务（向后兼容）
         self.vector_service = VectorStoreService(
             embedding=DashScopeEmbeddings(model=config.embedding_model_name)
         )
@@ -61,37 +87,57 @@ class RagService(object):
 
     def __hybrid_retriever(self, query: str) -> list[Document]:
         """混合检索策略：
-        1. 先检索本地向量数据库
-        2. 检查匹配分数 (L2距离)
-        3. 如果所有文档的分数都高于阈值(search_score_threshold)，则触发联网搜索
-        4. 否则仅使用本地文档
+        1. 优先使用多集合知识库（按用户类型检索）
+        2. 回退到单集合检索
+        3. 检查匹配分数 (L2距离)
+        4. 如果所有文档的分数都高于阈值(search_score_threshold)，则触发联网搜索
         """
         logs = []
         logs.append(f"正在检索: {query}")
-        print(f"正在检索: {query}")
-        
-        # 1. 本地检索 (带分数)
-        # similarity_search_with_score 返回 List[(Document, score)]
-        # Chroma L2 距离：越小越相关
-        local_results = self.vector_service.vector_store.similarity_search_with_score(
-            query, 
-            k=config.similarity_threshold
-        )
-        
+        logs.append(f"用户类型: {self.user_type}")
+        print(f"正在检索: {query} (用户类型: {self.user_type})")
+
         relevant_docs = []
         best_score = float('inf')
-        
-        for doc, score in local_results:
-            best_score = min(best_score, score)
-            if score <= config.search_score_threshold:
-                relevant_docs.append(doc)
-                
+
+        # 1. 尝试多集合检索
+        if self.multi_kb and self.user_type in ["c_end", "b_end", "both"]:
+            logs.append(f"使用多集合检索模式")
+            print(f"使用多集合检索模式")
+
+            multi_results = self.multi_kb.search_by_user_type(
+                query,
+                self.user_type,
+                k=config.similarity_threshold
+            )
+
+            for doc, score in multi_results:
+                best_score = min(best_score, score)
+                if score <= config.search_score_threshold:
+                    relevant_docs.append(doc)
+
+            collections_searched = self.multi_kb.get_collections_for_user_type(self.user_type)
+            logs.append(f"已检索集合: {', '.join(collections_searched)}")
+        else:
+            # 2. 回退到单集合检索
+            logs.append("使用单集合检索模式")
+            print("使用单集合检索模式")
+
+            local_results = self.vector_service.vector_store.similarity_search_with_score(
+                query,
+                k=config.similarity_threshold
+            )
+
+            for doc, score in local_results:
+                best_score = min(best_score, score)
+                if score <= config.search_score_threshold:
+                    relevant_docs.append(doc)
+
         log_msg = f"本地检索结果: {len(relevant_docs)} 个相关文档 (最佳分数: {best_score:.4f}, 阈值: {config.search_score_threshold})"
         logs.append(log_msg)
         print(log_msg)
 
-        # 2. 判断是否需要联网
-        # 如果没有相关文档，或者最佳分数都太差
+        # 3. 判断是否需要联网
         if not relevant_docs:
             if self.enable_search:
                 logs.append("本地知识库无相关内容，触发联网搜索...")
@@ -109,14 +155,13 @@ class RagService(object):
                 logs.append("本地无相关内容，且联网搜索已禁用。")
                 print("本地无相关内容，且联网搜索已禁用。")
                 relevant_docs = [Document(page_content="知识库中未找到相关信息，且未启用联网搜索。", metadata={"source": "none"})]
-        
-        # 将思考过程（logs）附加到第一个文档的元数据中，以便后续步骤获取
+
+        # 将思考过程（logs）附加到第一个文档的元数据中
         if relevant_docs:
             if "thinking_log" not in relevant_docs[0].metadata:
                 relevant_docs[0].metadata["thinking_log"] = []
             relevant_docs[0].metadata["thinking_log"].extend(logs)
         else:
-            # 极端情况：没有任何文档，创建一个空文档携带日志
             relevant_docs = [Document(page_content="无相关信息", metadata={"thinking_log": logs, "source": "none"})]
 
         return relevant_docs
