@@ -1,13 +1,15 @@
 """
 B端智能体 - 商家助手
 服务于商家用户，提供入驻指导、数据产品咨询、获客策略等服务
+整合记忆系统、推理引擎、工具系统等高级能力
 """
 import os
 import sys
+from typing import List, Dict, Optional, AsyncGenerator
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from backend.agents.base_agent import BaseAgent
+from backend.agents.enhanced_agent import EnhancedAgent
 from backend.agents.prompts.b_end_prompts import (
     B_END_SYSTEM_PROMPT,
     B_END_ONBOARDING_PROMPT,
@@ -19,17 +21,151 @@ from backend.config.business_rules import (
     CUSTOMER_SCRIPTS,
     BEST_CONTACT_TIMES,
 )
+from backend.core.output_formatter import OutputFormatter, OutputType
+from backend.core.stage_reasoning import get_stage_reasoning, BEndStage
 
 
-class BEndAgent(BaseAgent):
-    """B端智能体 - 商家助手"""
+class BEndAgent(EnhancedAgent):
+    """B端智能体 - 商家助手（增强版）
+
+    继承自 EnhancedAgent，具备以下能力：
+    - 三层记忆系统（短期/长期/工作记忆）
+    - 智能推理引擎（CoT/ToT/ReAct）
+    - 工具调用系统
+    - 多模态处理
+    - 结构化输出
+    - 阶段感知专家系统（商业顾问/营销专家/数据分析师/财务顾问）
+    """
 
     def __init__(self):
-        super().__init__(user_type="b_end")
+        super().__init__(user_type="b_end", agent_name="洞掌柜")
 
     def _get_system_prompt(self) -> str:
         """获取B端系统提示词"""
         return B_END_SYSTEM_PROMPT
+
+    # === 专家角色方法 ===
+
+    def get_expert_role_for_stage(self, stage: str) -> dict:
+        """
+        获取指定阶段的专家角色信息
+
+        Args:
+            stage: 商家阶段（入驻/获客/经营分析/核销结算）
+
+        Returns:
+            专家角色信息
+        """
+        expert_role = self.stage_reasoning.expert_manager.get_expert_role(stage, "b_end")
+        if expert_role:
+            return {
+                "name": expert_role.name,
+                "stage": expert_role.stage,
+                "core_value": expert_role.core_value,
+                "professional_perspective": expert_role.professional_perspective,
+            }
+        return None
+
+    def get_all_expert_roles(self) -> List[dict]:
+        """
+        获取所有B端专家角色
+
+        Returns:
+            专家角色列表
+        """
+        experts = self.stage_reasoning.expert_manager.get_all_experts("b_end")
+        return [
+            {
+                "name": role.name,
+                "stage": role.stage,
+                "core_value": role.core_value,
+                "professional_perspective": role.professional_perspective,
+            }
+            for role in experts.values()
+        ]
+
+    def get_stage_transition_guidance(self, from_stage: str, to_stage: str) -> str:
+        """
+        获取阶段转换引导
+
+        Args:
+            from_stage: 原阶段
+            to_stage: 新阶段
+
+        Returns:
+            转换引导文本
+        """
+        from backend.core.stage_reasoning import B_END_STAGE_TRANSITIONS
+        return B_END_STAGE_TRANSITIONS.get((from_stage, to_stage), f"您已进入{to_stage}阶段，有什么可以帮您的？")
+
+    # === 增强版处理方法 ===
+
+    async def process_with_roi_analysis(self, message: str, session_id: str,
+                                         user_id: str = None,
+                                         investment: float = None,
+                                         revenue: float = None) -> AsyncGenerator:
+        """
+        处理 ROI 分析查询，自动调用 ROI 计算工具
+
+        Args:
+            message: 用户消息
+            session_id: 会话ID
+            user_id: 用户ID
+            investment: 投入金额（可选，也会从消息中提取）
+            revenue: 收入金额（可选，也会从消息中提取）
+
+        Yields:
+            输出事件
+        """
+        # 尝试从参数或消息中提取数值
+        if investment is None:
+            investment = self._extract_amount(message, "投入")
+        if revenue is None:
+            revenue = self._extract_amount(message, "收入")
+
+        # 如果能提取到参数，先计算 ROI
+        if investment and revenue:
+            roi_result = self.analyze_roi(investment, revenue)
+            # 将 ROI 结果存入工作记忆
+            self.set_working_memory(session_id, "last_roi_analysis", roi_result)
+
+        # 调用父类的处理方法
+        async for event in self.process(message, session_id, user_id):
+            yield event
+
+    async def process_with_customer_script(self, message: str, session_id: str,
+                                            user_id: str = None,
+                                            scenario: str = "首次接触",
+                                            product_category: str = None) -> AsyncGenerator:
+        """
+        处理获客话术生成查询
+
+        Args:
+            message: 用户消息
+            session_id: 会话ID
+            user_id: 用户ID
+            scenario: 场景（首次接触/跟进/促单）
+            product_category: 产品品类
+
+        Yields:
+            输出事件
+        """
+        # 获取商家画像中的主营品类
+        profile = self.get_user_profile(user_id or session_id)
+
+        # 如果没有指定品类，尝试从用户画像获取
+        if not product_category:
+            product_category = profile.metadata.get("main_category", "家居产品")
+
+        # 生成话术并存入工作记忆
+        script_result = self.generate_customer_script(scenario, product_category)
+        self.set_working_memory(session_id, "last_script", script_result)
+
+        # 调用父类的处理方法
+        async for event in self.process(message, session_id, user_id):
+            yield event
+
+    # === 原有业务方法（保持兼容） ===
 
     def get_onboarding_prompt(self) -> str:
         """获取入驻指导专用提示词"""

@@ -5,8 +5,9 @@
 import os
 import sys
 import hashlib
+import threading
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Set
 
 # 添加父目录到路径以导入config
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -18,14 +19,88 @@ from langchain_core.documents import Document
 import config_data as config
 
 try:
+    from backend.core.logging_config import get_logger
+    logger = get_logger("knowledge")
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
+
+try:
     from PyPDF2 import PdfReader
     PDF_SUPPORT = True
 except ImportError:
     PDF_SUPPORT = False
 
 
+class MD5Store:
+    """
+    MD5 存储管理器
+
+    使用内存 Set 加速查询，同时持久化到文件
+    线程安全
+    """
+
+    def __init__(self, file_path: str):
+        self.file_path = file_path
+        self._md5_set: Set[str] = set()
+        self._lock = threading.RLock()
+        self._dirty = False
+        self._load()
+
+    def _load(self):
+        """从文件加载 MD5 集合"""
+        if not os.path.exists(self.file_path):
+            return
+
+        try:
+            with open(self.file_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    md5 = line.strip()
+                    if md5:
+                        self._md5_set.add(md5)
+            logger.info(f"加载 {len(self._md5_set)} 条 MD5 记录")
+        except Exception as e:
+            logger.error(f"加载 MD5 文件失败: {e}")
+
+    def contains(self, md5_str: str) -> bool:
+        """检查 MD5 是否存在（O(1) 复杂度）"""
+        with self._lock:
+            return md5_str in self._md5_set
+
+    def add(self, md5_str: str) -> bool:
+        """
+        添加 MD5（线程安全）
+
+        Returns:
+            True 如果是新增，False 如果已存在
+        """
+        with self._lock:
+            if md5_str in self._md5_set:
+                return False
+
+            self._md5_set.add(md5_str)
+            self._dirty = True
+
+            # 立即追加到文件
+            try:
+                with open(self.file_path, "a", encoding="utf-8") as f:
+                    f.write(md5_str + "\n")
+            except Exception as e:
+                logger.error(f"保存 MD5 失败: {e}")
+
+            return True
+
+    def size(self) -> int:
+        """获取记录数量"""
+        return len(self._md5_set)
+
+
 class MultiCollectionKB:
     """多集合知识库管理器"""
+
+    # 类级别的 MD5 存储（单例）
+    _md5_store: Optional[MD5Store] = None
+    _md5_lock = threading.Lock()
 
     def __init__(self):
         os.makedirs(config.persist_directory, exist_ok=True)
@@ -37,7 +112,17 @@ class MultiCollectionKB:
             length_function=len,
         )
         self._collections: dict[str, Chroma] = {}
+        self._collection_lock = threading.RLock()
         self._init_collections()
+        self._init_md5_store()
+
+    @classmethod
+    def _init_md5_store(cls):
+        """初始化 MD5 存储（单例）"""
+        if cls._md5_store is None:
+            with cls._md5_lock:
+                if cls._md5_store is None:
+                    cls._md5_store = MD5Store(config.md5_path)
 
     def _init_collections(self):
         """初始化所有配置的集合"""
@@ -45,14 +130,15 @@ class MultiCollectionKB:
             self._get_or_create_collection(name)
 
     def _get_or_create_collection(self, collection_name: str) -> Chroma:
-        """获取或创建指定集合"""
-        if collection_name not in self._collections:
-            self._collections[collection_name] = Chroma(
-                collection_name=collection_name,
-                embedding_function=self.embedding,
-                persist_directory=config.persist_directory,
-            )
-        return self._collections[collection_name]
+        """获取或创建指定集合（线程安全）"""
+        with self._collection_lock:
+            if collection_name not in self._collections:
+                self._collections[collection_name] = Chroma(
+                    collection_name=collection_name,
+                    embedding_function=self.embedding,
+                    persist_directory=config.persist_directory,
+                )
+            return self._collections[collection_name]
 
     def get_collection(self, collection_name: str) -> Optional[Chroma]:
         """获取指定集合"""
@@ -73,23 +159,13 @@ class MultiCollectionKB:
         """计算内容的MD5哈希"""
         return hashlib.md5(content.encode("utf-8")).hexdigest()
 
-    @staticmethod
-    def _check_md5(md5_str: str) -> bool:
-        """检查MD5是否已存在"""
-        if not os.path.exists(config.md5_path):
-            open(config.md5_path, "w", encoding="utf-8").close()
-            return False
-        with open(config.md5_path, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.strip() == md5_str:
-                    return True
-        return False
+    def _check_md5(self, md5_str: str) -> bool:
+        """检查MD5是否已存在（O(1) 复杂度）"""
+        return self._md5_store.contains(md5_str)
 
-    @staticmethod
-    def _save_md5(md5_str: str):
-        """保存MD5记录"""
-        with open(config.md5_path, "a", encoding="utf-8") as f:
-            f.write(md5_str + "\n")
+    def _save_md5(self, md5_str: str) -> bool:
+        """保存MD5记录（线程安全）"""
+        return self._md5_store.add(md5_str)
 
     def add_text(
         self,

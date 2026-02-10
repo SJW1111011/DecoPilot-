@@ -19,6 +19,13 @@ from backend.core.output_formatter import (
     create_subsidy_result
 )
 
+# 导入异步工具
+try:
+    from backend.core.async_utils import get_async_executor
+    ASYNC_UTILS_AVAILABLE = True
+except ImportError:
+    ASYNC_UTILS_AVAILABLE = False
+
 router = APIRouter(prefix="/merchant", tags=["商家服务"])
 
 
@@ -89,12 +96,25 @@ async def recommend_merchants(request: MerchantRecommendRequest):
     根据用户需求推荐合适的商家
     """
     agent = get_c_end_agent()
-    merchants = agent.recommend_merchants(
-        category=request.category,
-        budget=request.budget,
-        style=request.style,
-        limit=request.limit,
-    )
+
+    # 使用线程池执行可能阻塞的操作
+    if ASYNC_UTILS_AVAILABLE:
+        executor = get_async_executor()
+        merchants = await executor.run_in_thread(
+            agent.recommend_merchants,
+            category=request.category,
+            budget=request.budget,
+            style=request.style,
+            limit=request.limit,
+        )
+    else:
+        merchants = agent.recommend_merchants(
+            category=request.category,
+            budget=request.budget,
+            style=request.style,
+            limit=request.limit,
+        )
+
     return {
         "category": request.category,
         "budget": request.budget,
@@ -196,11 +216,23 @@ async def analyze_roi(request: ROIAnalysisRequest):
         raise HTTPException(status_code=400, detail="投入金额必须大于0")
 
     agent = get_b_end_agent()
-    result = agent.analyze_roi(
-        investment=request.investment,
-        revenue=request.revenue,
-        period_days=request.period_days,
-    )
+
+    # 使用线程池执行可能阻塞的操作
+    if ASYNC_UTILS_AVAILABLE:
+        executor = get_async_executor()
+        result = await executor.run_in_thread(
+            agent.analyze_roi,
+            investment=request.investment,
+            revenue=request.revenue,
+            period_days=request.period_days,
+        )
+    else:
+        result = agent.analyze_roi(
+            investment=request.investment,
+            revenue=request.revenue,
+            period_days=request.period_days,
+        )
+
     return result
 
 
@@ -219,10 +251,21 @@ async def generate_customer_script(request: CustomerScriptRequest):
         )
 
     agent = get_b_end_agent()
-    result = agent.generate_customer_script(
-        scenario=request.scenario,
-        product_category=request.product_category,
-    )
+
+    # 使用线程池执行可能阻塞的操作
+    if ASYNC_UTILS_AVAILABLE:
+        executor = get_async_executor()
+        result = await executor.run_in_thread(
+            agent.generate_customer_script,
+            scenario=request.scenario,
+            product_category=request.product_category,
+        )
+    else:
+        result = agent.generate_customer_script(
+            scenario=request.scenario,
+            product_category=request.product_category,
+        )
+
     return result
 
 
@@ -234,5 +277,14 @@ async def get_best_contact_time(customer_type: str = "业主"):
     返回联系客户的最佳时间建议
     """
     agent = get_b_end_agent()
-    result = agent.get_best_contact_time(customer_type)
+
+    # 使用线程池执行可能阻塞的操作
+    if ASYNC_UTILS_AVAILABLE:
+        executor = get_async_executor()
+        result = await executor.run_in_thread(
+            agent.get_best_contact_time, customer_type
+        )
+    else:
+        result = agent.get_best_contact_time(customer_type)
+
     return result

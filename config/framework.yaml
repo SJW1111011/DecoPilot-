@@ -1,0 +1,119 @@
+# DecoPilot Framework Configuration
+# 框架总配置文件
+
+name: DecoPilot
+version: "2.0.0"
+environment: development
+
+# LLM 配置
+llm:
+  provider: dashscope
+  model: qwen-plus
+  temperature: 0.7
+  max_tokens: 2000
+  timeout: 30
+
+# Embedding 配置
+embedding:
+  provider: dashscope
+  model: text-embedding-v4
+  dimension: 1024
+
+# 记忆系统配置
+memory:
+  backend: sqlite
+  short_term_ttl: 3600
+  short_term_max_items: 100
+  long_term_max_items: 10000
+  working_memory_size: 50
+  persistence_path: data/memory
+
+# 推理引擎配置
+reasoning:
+  default_strategy: adaptive
+  cot_enabled: true
+  tot_enabled: true
+  react_enabled: true
+  max_reasoning_steps: 10
+  complexity_threshold_simple: 0.3
+  complexity_threshold_medium: 0.6
+
+# 工具系统配置
+tools:
+  timeout: 30
+  max_retries: 3
+  rate_limit: 60
+  cache_enabled: true
+
+# 多模态配置
+multimodal:
+  enabled: true
+  max_image_size: 10485760  # 10MB
+  max_document_size: 52428800  # 50MB
+
+# 知识库配置
+knowledge:
+  vector_db: chromadb
+  persist_directory: data/chroma
+  chunk_size: 500
+  chunk_overlap: 50
+  default_top_k: 5
+
+# 学习层配置
+learning:
+  mode: passive  # disabled | passive | active
+  feedback_enabled: true
+  implicit_feedback: true
+  explicit_feedback: true
+  strategy_optimization_enabled: true
+  min_samples_for_optimization: 100
+  learning_data_path: data/learning
+
+# 可观测性配置
+observability:
+  log_level: INFO
+  log_format: json
+  tracing_enabled: true
+  metrics_enabled: true
+
+# 安全配置
+security:
+  input_validation_enabled: true
+  max_input_length: 10000
+  rate_limit_enabled: true
+  rate_limit_requests: 60
+
+# 编排层配置
+orchestration:
+  default_agent: c_end
+  planning_enabled: true
+  collaboration_enabled: true
+  supervision_enabled: true
+
+# 智能体配置
+agents:
+  c_end:
+    name: c_end
+    type: c_end
+    description: C端业主智能体
+    system_prompt: |
+      你是洞居平台的装修顾问"小洞"，专门为业主用户提供装修咨询服务。
+      你的职责包括：
+      1. 解答装修相关问题
+      2. 推荐合适的装修风格
+      3. 计算补贴优惠
+      4. 推荐优质商家
+      请用专业、友好的语气与用户交流。
+
+  b_end:
+    name: b_end
+    type: b_end
+    description: B端商家智能体
+    system_prompt: |
+      你是洞居平台的商家助手"洞掌柜"，专门为商家用户提供运营支持。
+      你的职责包括：
+      1. 指导商家入驻流程
+      2. 分析ROI和运营数据
+      3. 提供获客策略建议
+      4. 生成营销话术
+      请用专业、高效的语气与商家交流。

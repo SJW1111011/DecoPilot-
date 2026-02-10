@@ -1,8 +1,53 @@
 /**
- * 结构化数据渲染组件
- * 用于渲染补贴计算、商家卡片、流程步骤等结构化数据
+ * 结构化数据渲染组件 — 无边框软化版
+ * 移除 border，改用 bg 背景对比 + 柔和阴影
  */
-import React from 'react';
+import React, { useState } from 'react';
+import {
+  Calculator, Store, ListChecks, Table, Quote,
+  AlertCircle, Brain, TrendingUp, CheckCircle, XCircle,
+  ArrowRight, Clock, DollarSign, BarChart3, Lightbulb,
+  ChevronDown, Star, MapPin, Tag
+} from 'lucide-react';
+
+// 通用卡片容器 — 无边框，背景对比
+const Card = ({ children, className = '', gradient = false, color = 'slate' }) => {
+  const gradients = {
+    owner: 'bg-gradient-to-br from-owner-50/60 to-white',
+    merchant: 'bg-gradient-to-br from-merchant-50/60 to-white',
+    thinking: 'bg-gradient-to-br from-thinking-50/60 to-white',
+    slate: 'bg-slate-50/80',
+  };
+
+  return (
+    <div className={`
+      rounded-2xl shadow-float my-4 overflow-hidden
+      ${gradient ? gradients[color] : 'bg-slate-50/80'}
+      ${className}
+    `}>
+      {children}
+    </div>
+  );
+};
+
+// 卡片头部 — 更轻量，无底部边线
+const CardHeader = ({ icon: Icon, title, badge, color = 'owner' }) => {
+  const colors = {
+    owner: 'text-owner-500',
+    merchant: 'text-merchant-500',
+    thinking: 'text-thinking-500',
+  };
+
+  return (
+    <div className="flex items-center justify-between px-5 py-4">
+      <div className="flex items-center gap-2.5">
+        <Icon size={18} className={colors[color]} />
+        <h4 className="font-semibold text-slate-700 text-sm">{title}</h4>
+      </div>
+      {badge}
+    </div>
+  );
+};
 
 /**
  * 补贴计算结果卡片
@@ -10,57 +55,281 @@ import React from 'react';
 export function SubsidyCard({ data }) {
   if (!data) return null;
 
-  // 处理批量计算结果
   if (data.items) {
     return (
-      <div className="subsidy-card batch">
-        <h4>补贴计算结果</h4>
-        <div className="subsidy-items">
-          {data.items.map((item, index) => (
-            <div key={index} className="subsidy-item">
-              <span className="category">{item.category}</span>
-              <span className="amount">¥{item.final_amount.toFixed(0)}</span>
-              <span className="explanation">{item.explanation}</span>
+      <Card gradient color="owner" className="animate-fade-in-up">
+        <CardHeader icon={Calculator} title="补贴计算结果" color="owner" />
+        <div className="px-5 pb-5">
+          <div className="space-y-2">
+            {data.items.map((item, index) => (
+              <div
+                key={index}
+                className="flex justify-between items-center bg-white/80 rounded-xl p-4 hover:bg-white transition-all duration-200"
+              >
+                <span className="text-slate-600 text-sm">{item.category}</span>
+                <span className="font-semibold text-owner-600 text-lg">¥{item.final_amount.toFixed(0)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 pt-5 border-t border-slate-100/60 flex justify-between items-center">
+            <span className="font-medium text-slate-600 text-sm">总补贴金额</span>
+            <div className="flex items-center gap-3">
+              <span className="text-3xl font-bold text-owner-600">¥{data.total_subsidy.toFixed(0)}</span>
+              {data.exceeded_limit && (
+                <span className="badge bg-orange-100 text-orange-600">已达上限</span>
+              )}
             </div>
-          ))}
+          </div>
         </div>
-        <div className="subsidy-total">
-          <span>总补贴</span>
-          <span className="total-amount">¥{data.total_subsidy.toFixed(0)}</span>
-          {data.exceeded_limit && (
-            <span className="limit-warning">已达月度上限</span>
-          )}
-        </div>
-      </div>
+      </Card>
     );
   }
 
-  // 单个计算结果
   return (
-    <div className="subsidy-card">
-      <h4>补贴计算</h4>
-      <div className="subsidy-detail">
-        <div className="row">
-          <span>品类</span>
-          <span>{data.category}</span>
+    <Card gradient color="owner" className="animate-fade-in-up">
+      <CardHeader icon={Calculator} title="补贴计算" color="owner" />
+      <div className="px-5 pb-5">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white/80 rounded-xl p-4">
+            <span className="text-2xs text-slate-400 uppercase tracking-wide">品类</span>
+            <p className="font-medium text-slate-700 mt-1 text-sm">{data.category}</p>
+          </div>
+          <div className="bg-white/80 rounded-xl p-4">
+            <span className="text-2xs text-slate-400 uppercase tracking-wide">订单金额</span>
+            <p className="font-medium text-slate-700 mt-1 text-sm">¥{data.original_amount?.toFixed(0)}</p>
+          </div>
+          <div className="bg-white/80 rounded-xl p-4">
+            <span className="text-2xs text-slate-400 uppercase tracking-wide">补贴比例</span>
+            <p className="font-medium text-slate-700 mt-1 text-sm">{(data.subsidy_rate * 100).toFixed(0)}%</p>
+          </div>
+          <div className="bg-owner-50/80 rounded-xl p-4">
+            <span className="text-2xs text-owner-500 uppercase tracking-wide">预估补贴</span>
+            <p className="font-bold text-owner-600 text-xl mt-1">¥{data.final_amount?.toFixed(0)}</p>
+          </div>
         </div>
-        <div className="row">
-          <span>订单金额</span>
-          <span>¥{data.original_amount?.toFixed(0)}</span>
+        {data.explanation && (
+          <div className="mt-4 flex items-start gap-2 p-4 bg-amber-50/60 rounded-xl">
+            <Lightbulb size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-700">{data.explanation}</p>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * ROI 分析卡片
+ */
+export function ROICard({ data }) {
+  if (!data) return null;
+
+  const getAssessmentStyle = (level) => {
+    const styles = {
+      '优秀': 'bg-green-100/80 text-green-700',
+      '良好': 'bg-owner-100/80 text-owner-700',
+      '一般': 'bg-amber-100/80 text-amber-700',
+      '较低': 'bg-orange-100/80 text-orange-700',
+      '亏损': 'bg-red-100/80 text-red-700',
+    };
+    return styles[level] || 'bg-slate-100 text-slate-700';
+  };
+
+  return (
+    <Card gradient color="merchant" className="animate-fade-in-up">
+      <CardHeader
+        icon={TrendingUp}
+        title="ROI 分析"
+        color="merchant"
+        badge={data.assessment && (
+          <span className={`badge ${getAssessmentStyle(data.assessment.level)}`}>
+            {data.assessment.level}
+          </span>
+        )}
+      />
+      <div className="px-5 pb-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          {[
+            { icon: DollarSign, label: '投入', value: `¥${data.investment?.toLocaleString()}` },
+            { icon: BarChart3, label: '收入', value: `¥${data.revenue?.toLocaleString()}` },
+            { icon: TrendingUp, label: 'ROI', value: `${data.roi_percentage?.toFixed(1)}%`, highlight: true },
+            { icon: Clock, label: '回本周期', value: typeof data.payback_days === 'number' ? `${data.payback_days}天` : data.payback_days },
+          ].map((item, idx) => (
+            <div key={idx} className="bg-white/80 rounded-xl p-4 text-center hover:bg-white transition-all">
+              <item.icon size={18} className={`mx-auto mb-2 ${item.highlight ? 'text-merchant-500' : 'text-slate-400'}`} />
+              <p className="text-2xs text-slate-400 mb-1">{item.label}</p>
+              <p className={`font-bold ${item.highlight ? (data.roi_percentage >= 0 ? 'text-merchant-600 text-lg' : 'text-red-600 text-lg') : 'text-slate-700'}`}>
+                {item.value}
+              </p>
+            </div>
+          ))}
         </div>
-        <div className="row">
-          <span>补贴比例</span>
-          <span>{(data.subsidy_rate * 100).toFixed(0)}%</span>
+
+        {data.assessment?.description && (
+          <div className="bg-white/80 rounded-xl p-4 mb-4">
+            <p className="text-sm text-slate-600">{data.assessment.description}</p>
+          </div>
+        )}
+
+        {data.suggestions?.length > 0 && (
+          <div className="bg-white/80 rounded-xl p-4">
+            <p className="text-sm font-medium text-slate-600 mb-3">优化建议</p>
+            <div className="space-y-2">
+              {data.suggestions.map((suggestion, idx) => (
+                <div key={idx} className="flex items-start gap-2">
+                  <Lightbulb size={14} className="text-amber-400 flex-shrink-0 mt-1" />
+                  <p className="text-sm text-slate-500">{suggestion}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * 对比卡片
+ */
+export function ComparisonCard({ data }) {
+  if (!data?.items?.length) return null;
+
+  return (
+    <Card className="animate-fade-in-up">
+      {data.title && <CardHeader icon={Table} title={data.title} />}
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-slate-100/40">
+              <th className="px-5 py-3 text-left text-sm font-medium text-slate-500">对比项</th>
+              {data.items.map((item, idx) => (
+                <th key={idx} className="px-5 py-3 text-center text-sm font-medium text-slate-700">
+                  {item.name}
+                  {item.recommended && (
+                    <span className="ml-2 badge-owner">推荐</span>
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.criteria?.map((criterion, rowIdx) => (
+              <tr key={rowIdx} className="border-t border-slate-100/40 hover:bg-white/60 transition-colors">
+                <td className="px-5 py-3 text-sm text-slate-500">{criterion}</td>
+                {data.items.map((item, colIdx) => (
+                  <td key={colIdx} className="px-5 py-3 text-sm text-center text-slate-600">
+                    {item.values?.[rowIdx] || '-'}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {data.conclusion && (
+        <div className="px-5 py-4 bg-owner-50/40 flex items-start gap-2">
+          <Lightbulb size={16} className="text-owner-400 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-owner-600">{data.conclusion}</p>
         </div>
-        <div className="row highlight">
-          <span>预估补贴</span>
-          <span className="amount">¥{data.final_amount?.toFixed(0)}</span>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * 清单组件
+ */
+export function Checklist({ data }) {
+  if (!data?.items?.length) return null;
+
+  return (
+    <Card className="animate-fade-in-up">
+      {data.title && <CardHeader icon={ListChecks} title={data.title} />}
+      <div className="px-5 pb-5 space-y-2">
+        {data.items.map((item, idx) => (
+          <div
+            key={idx}
+            className={`flex items-start gap-3 p-4 rounded-xl transition-all ${
+              item.checked ? 'bg-green-50/60' : 'bg-white/60'
+            }`}
+          >
+            {item.checked ? (
+              <CheckCircle size={18} className="text-green-500 flex-shrink-0 mt-0.5" />
+            ) : (
+              <div className="w-[18px] h-[18px] rounded-full border-2 border-slate-200 flex-shrink-0 mt-0.5" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm ${item.checked ? 'text-green-700' : 'text-slate-600'}`}>{item.text}</p>
+              {item.note && <p className="text-xs text-slate-400 mt-1">{item.note}</p>}
+            </div>
+            {item.priority && (
+              <span className={`badge ${
+                item.priority === 'high' ? 'bg-red-100/80 text-red-600' :
+                item.priority === 'medium' ? 'bg-amber-100/80 text-amber-600' :
+                'bg-slate-100 text-slate-500'
+              }`}>
+                {item.priority === 'high' ? '重要' : item.priority === 'medium' ? '一般' : '可选'}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      {data.progress !== undefined && (
+        <div className="px-5 pb-5">
+          <div className="flex justify-between text-sm text-slate-500 mb-2">
+            <span>完成进度</span>
+            <span className="font-medium">{data.progress}%</span>
+          </div>
+          <div className="h-1.5 bg-slate-200/60 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-owner-500 to-owner-400 rounded-full transition-all duration-500"
+              style={{ width: `${data.progress}%` }}
+            />
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * 时间线组件
+ */
+export function Timeline({ data }) {
+  if (!data?.events?.length) return null;
+
+  return (
+    <Card className="animate-fade-in-up">
+      {data.title && <CardHeader icon={Clock} title={data.title} />}
+      <div className="px-5 pb-5">
+        <div className="relative">
+          <div className="absolute left-[15px] top-0 bottom-0 w-0.5 bg-slate-200/60" />
+          <div className="space-y-4">
+            {data.events.map((event, idx) => (
+              <div key={idx} className="relative pl-10">
+                <div className={`absolute left-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                  event.status === 'completed' ? 'bg-green-500 text-white' :
+                  event.status === 'current' ? 'bg-owner-500 text-white' :
+                  'bg-slate-100 border-2 border-slate-200'
+                }`}>
+                  {event.status === 'completed' && <CheckCircle size={14} />}
+                </div>
+                <div className={`p-4 rounded-xl ${
+                  event.status === 'current' ? 'bg-owner-50/60' : 'bg-white/60'
+                }`}>
+                  <div className="flex justify-between items-start mb-1">
+                    <h5 className="font-medium text-slate-700 text-sm">{event.title}</h5>
+                    {event.date && <span className="text-xs text-slate-400">{event.date}</span>}
+                  </div>
+                  {event.description && <p className="text-sm text-slate-500">{event.description}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-      {data.explanation && (
-        <div className="explanation">{data.explanation}</div>
-      )}
-    </div>
+    </Card>
   );
 }
 
@@ -71,39 +340,46 @@ export function MerchantCard({ merchant }) {
   if (!merchant) return null;
 
   return (
-    <div className="merchant-card">
-      {merchant.image_url && (
-        <div className="merchant-image">
-          <img src={merchant.image_url} alt={merchant.name} />
-        </div>
-      )}
-      <div className="merchant-info">
-        <h4>{merchant.name}</h4>
-        <div className="merchant-meta">
-          <span className="category">{merchant.category}</span>
-          <span className="rating">
-            {'★'.repeat(Math.floor(merchant.rating))}
-            {merchant.rating % 1 >= 0.5 ? '½' : ''}
-            <span className="rating-num">{merchant.rating.toFixed(1)}</span>
-          </span>
-          <span className="reviews">{merchant.review_count}条评价</span>
-        </div>
-        {merchant.highlights && merchant.highlights.length > 0 && (
-          <div className="highlights">
-            {merchant.highlights.map((h, i) => (
-              <span key={i} className="highlight-tag">{h}</span>
-            ))}
+    <div className="bg-slate-50/80 rounded-2xl p-4 shadow-float hover:shadow-float-md transition-all duration-200 animate-fade-in">
+      <div className="flex gap-4">
+        {merchant.image_url && (
+          <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100">
+            <img src={merchant.image_url} alt={merchant.name} className="w-full h-full object-cover" />
           </div>
         )}
-        <div className="merchant-footer">
-          <span className="price-range">{merchant.price_range}</span>
-          <span className="address">{merchant.address}</span>
-        </div>
-        {merchant.subsidy_rate && (
-          <div className="subsidy-badge">
-            补贴{(merchant.subsidy_rate * 100).toFixed(0)}%
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <h4 className="font-semibold text-slate-700 truncate text-sm">{merchant.name}</h4>
+            {merchant.subsidy_rate && (
+              <span className="badge-owner flex-shrink-0">
+                <Tag size={10} />
+                补贴{(merchant.subsidy_rate * 100).toFixed(0)}%
+              </span>
+            )}
           </div>
-        )}
+          <div className="flex items-center gap-2 mt-1.5 text-sm">
+            <span className="text-slate-400">{merchant.category}</span>
+            <span className="flex items-center gap-0.5 text-amber-500">
+              <Star size={12} fill="currentColor" />
+              {merchant.rating?.toFixed(1)}
+            </span>
+            <span className="text-slate-300">{merchant.review_count}评价</span>
+          </div>
+          {merchant.highlights?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {merchant.highlights.map((h, i) => (
+                <span key={i} className="badge bg-slate-100/80 text-slate-500">{h}</span>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center justify-between mt-2.5 text-sm">
+            <span className="font-medium text-merchant-600">{merchant.price_range}</span>
+            <span className="flex items-center gap-1 text-slate-400 truncate text-xs">
+              <MapPin size={12} />
+              {merchant.address}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -113,14 +389,17 @@ export function MerchantCard({ merchant }) {
  * 商家列表
  */
 export function MerchantList({ data }) {
-  if (!data || !data.merchants || data.merchants.length === 0) return null;
+  if (!data?.merchants?.length) return null;
 
   return (
-    <div className="merchant-list">
-      <h4>{data.title || '推荐商家'}</h4>
-      <div className="merchants">
-        {data.merchants.map((merchant, index) => (
-          <MerchantCard key={merchant.id || index} merchant={merchant} />
+    <div className="my-4 animate-fade-in-up">
+      <div className="flex items-center gap-2.5 mb-4">
+        <Store size={18} className="text-owner-500" />
+        <h4 className="font-semibold text-slate-700 text-sm">{data.title || '推荐商家'}</h4>
+      </div>
+      <div className="space-y-3">
+        {data.merchants.map((merchant, idx) => (
+          <MerchantCard key={merchant.id || idx} merchant={merchant} />
         ))}
       </div>
     </div>
@@ -131,35 +410,54 @@ export function MerchantList({ data }) {
  * 流程步骤
  */
 export function ProcessSteps({ data }) {
-  if (!data || !data.steps || data.steps.length === 0) return null;
+  if (!data?.steps?.length) return null;
 
   return (
-    <div className="process-steps">
-      <h4>{data.title || '流程步骤'}</h4>
-      <div className="steps">
-        {data.steps.map((step, index) => (
-          <div
-            key={index}
-            className={`step ${step.status || 'pending'}`}
-          >
-            <div className="step-number">{step.step_number}</div>
-            <div className="step-content">
-              <h5>{step.title}</h5>
-              <p>{step.description}</p>
-              {step.duration && (
-                <span className="duration">{step.duration}</span>
-              )}
-              {step.tips && step.tips.length > 0 && (
-                <div className="tips">
+    <Card className="animate-fade-in-up">
+      <CardHeader icon={ListChecks} title={data.title || '流程步骤'} />
+      <div className="px-5 pb-5 space-y-4">
+        {data.steps.map((step, idx) => (
+          <div key={idx} className={`relative pl-12 ${idx < data.steps.length - 1 ? 'pb-4' : ''}`}>
+            {idx < data.steps.length - 1 && (
+              <div className="absolute left-[15px] top-8 bottom-0 w-0.5 bg-slate-200/60" />
+            )}
+            <div className={`absolute left-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+              step.status === 'completed' ? 'bg-green-500 text-white' :
+              step.status === 'current' ? 'bg-owner-500 text-white' :
+              'bg-slate-100 text-slate-500'
+            }`}>
+              {step.status === 'completed' ? '✓' : step.step_number}
+            </div>
+            <div className={`p-4 rounded-xl ${
+              step.status === 'current' ? 'bg-owner-50/60' : 'bg-white/60'
+            }`}>
+              <div className="flex items-center justify-between mb-1">
+                <h5 className="font-medium text-slate-700 text-sm">{step.title}</h5>
+                {step.duration && (
+                  <span className="flex items-center gap-1 text-xs text-slate-400">
+                    <Clock size={12} />
+                    {step.duration}
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-slate-500">{step.description}</p>
+              {step.tips?.length > 0 && (
+                <div className="mt-3 space-y-1">
                   {step.tips.map((tip, i) => (
-                    <span key={i} className="tip">💡 {tip}</span>
+                    <p key={i} className="flex items-start gap-1.5 text-xs text-owner-500">
+                      <Lightbulb size={12} className="flex-shrink-0 mt-0.5" />
+                      {tip}
+                    </p>
                   ))}
                 </div>
               )}
-              {step.warnings && step.warnings.length > 0 && (
-                <div className="warnings">
+              {step.warnings?.length > 0 && (
+                <div className="mt-3 space-y-1">
                   {step.warnings.map((warning, i) => (
-                    <span key={i} className="warning">⚠️ {warning}</span>
+                    <p key={i} className="flex items-start gap-1.5 text-xs text-orange-500">
+                      <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+                      {warning}
+                    </p>
                   ))}
                 </div>
               )}
@@ -167,7 +465,7 @@ export function ProcessSteps({ data }) {
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -175,51 +473,61 @@ export function ProcessSteps({ data }) {
  * 数据表格
  */
 export function DataTable({ data }) {
-  if (!data || !data.headers || !data.rows) return null;
+  if (!data?.headers || !data?.rows) return null;
 
   return (
-    <div className="data-table">
-      {data.title && <h4>{data.title}</h4>}
-      <table>
-        <thead>
-          <tr>
-            {data.headers.map((header, index) => (
-              <th key={index}>{header}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.rows.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {row.map((cell, cellIndex) => (
-                <td key={cellIndex}>{cell}</td>
+    <Card className="animate-fade-in-up">
+      {data.title && <CardHeader icon={Table} title={data.title} />}
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-slate-100/40">
+              {data.headers.map((header, idx) => (
+                <th key={idx} className="px-5 py-3 text-left text-sm font-medium text-slate-500">{header}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {data.footer && <div className="table-footer">{data.footer}</div>}
-    </div>
+          </thead>
+          <tbody>
+            {data.rows.map((row, rowIdx) => (
+              <tr key={rowIdx} className="border-t border-slate-100/40 hover:bg-white/60 transition-colors">
+                {row.map((cell, cellIdx) => (
+                  <td key={cellIdx} className="px-5 py-3 text-sm text-slate-600">{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {data.footer && (
+        <div className="px-5 py-3 bg-slate-100/30 text-sm text-slate-400">
+          {data.footer}
+        </div>
+      )}
+    </Card>
   );
 }
 
 /**
- * 引用来源
+ * 引用来源 — 更紧凑
  */
 export function Sources({ sources }) {
-  if (!sources || sources.length === 0) return null;
+  if (!sources?.length) return null;
 
   return (
-    <div className="sources">
-      <h5>参考来源</h5>
-      <div className="source-list">
-        {sources.map((source, index) => (
-          <div key={index} className="source-item">
-            <span className="source-title">{source.title}</span>
-            <span className="source-collection">{source.collection}</span>
+    <div className="bg-slate-50/60 rounded-xl p-4 my-4 animate-fade-in">
+      <div className="flex items-center gap-2 mb-2.5">
+        <Quote size={13} className="text-slate-400" />
+        <h5 className="text-xs font-medium text-slate-500">参考来源</h5>
+      </div>
+      <div className="space-y-1.5">
+        {sources.map((source, idx) => (
+          <div key={idx} className="flex items-center gap-2 text-xs bg-white/60 rounded-lg px-3 py-2">
+            <span className="font-medium text-slate-600">{source.title}</span>
+            <span className="text-slate-200">|</span>
+            <span className="text-slate-400">{source.collection}</span>
             {source.relevance_score > 0 && (
-              <span className="relevance">
-                相关度: {(source.relevance_score * 100).toFixed(0)}%
+              <span className="ml-auto text-owner-400 text-2xs">
+                {(source.relevance_score * 100).toFixed(0)}%
               </span>
             )}
           </div>
@@ -230,19 +538,20 @@ export function Sources({ sources }) {
 }
 
 /**
- * 快捷回复按钮
+ * 快捷回复按钮 — 药丸样式
  */
 export function QuickReplies({ replies, onSelect }) {
-  if (!replies || replies.length === 0) return null;
+  if (!replies?.length) return null;
 
   return (
-    <div className="quick-replies">
-      {replies.map((reply, index) => (
+    <div className="flex flex-wrap gap-2 my-4 animate-fade-in-up">
+      {replies.map((reply, idx) => (
         <button
-          key={index}
-          className="quick-reply-btn"
-          onClick={() => onSelect && onSelect(reply)}
+          key={idx}
+          onClick={() => onSelect?.(reply)}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium bg-white shadow-float hover:shadow-float-md text-slate-600 hover:text-slate-800 transition-all duration-200 hover:-translate-y-0.5"
         >
+          <ArrowRight size={12} className="text-slate-400" />
           {reply.text}
         </button>
       ))}
@@ -254,7 +563,7 @@ export function QuickReplies({ replies, onSelect }) {
  * 操作按钮
  */
 export function ActionButtons({ buttons, onAction }) {
-  if (!buttons || buttons.length === 0) return null;
+  if (!buttons?.length) return null;
 
   const handleClick = (button) => {
     if (onAction) {
@@ -266,13 +575,21 @@ export function ActionButtons({ buttons, onAction }) {
     }
   };
 
+  const getStyle = (style) => ({
+    primary: 'btn-owner',
+    secondary: 'btn-ghost',
+    success: 'btn-merchant',
+    danger: 'bg-red-500 text-white hover:bg-red-600',
+    default: 'bg-white shadow-float text-slate-600 hover:shadow-float-md',
+  }[style] || 'bg-white shadow-float text-slate-600 hover:shadow-float-md');
+
   return (
-    <div className="action-buttons">
-      {buttons.map((button, index) => (
+    <div className="flex flex-wrap gap-2 my-4 animate-fade-in-up">
+      {buttons.map((button, idx) => (
         <button
-          key={index}
-          className={`action-btn ${button.style || 'default'}`}
+          key={idx}
           onClick={() => handleClick(button)}
+          className={`btn btn-md ${getStyle(button.style)}`}
         >
           {button.text}
         </button>
@@ -285,23 +602,28 @@ export function ActionButtons({ buttons, onAction }) {
  * 思考过程展示
  */
 export function ThinkingProcess({ logs, collapsed = true }) {
-  const [isCollapsed, setIsCollapsed] = React.useState(collapsed);
+  const [isCollapsed, setIsCollapsed] = useState(collapsed);
 
-  if (!logs || logs.length === 0) return null;
+  if (!logs?.length) return null;
 
   return (
-    <div className="thinking-process">
-      <div
-        className="thinking-header"
+    <div className="thinking-inline my-4 animate-fade-in-up">
+      <button
         onClick={() => setIsCollapsed(!isCollapsed)}
+        className="thinking-inline-header"
       >
-        <span>🤔 思考过程</span>
-        <span className="toggle">{isCollapsed ? '展开' : '收起'}</span>
-      </div>
+        <Brain size={14} />
+        <span className="font-medium">思考过程</span>
+        <span className="text-xs text-thinking-400">({logs.length} 步)</span>
+        <ChevronDown size={14} className={`transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`} />
+      </button>
       {!isCollapsed && (
-        <div className="thinking-logs">
-          {logs.map((log, index) => (
-            <div key={index} className="log-item">{log}</div>
+        <div className="thinking-inline-content animate-fade-in">
+          {logs.map((log, idx) => (
+            <div key={idx} className="flex gap-2 text-sm">
+              <span className="flex-shrink-0 text-xs text-thinking-400 font-mono mt-0.5">{idx + 1}.</span>
+              <p className="text-slate-500">{log}</p>
+            </div>
           ))}
         </div>
       )}
@@ -313,23 +635,65 @@ export function ThinkingProcess({ logs, collapsed = true }) {
  * 错误提示
  */
 export function ErrorMessage({ errors }) {
-  if (!errors || errors.length === 0) return null;
+  if (!errors?.length) return null;
 
   return (
-    <div className="error-messages">
-      {errors.map((error, index) => (
-        <div key={index} className="error-item">
-          <span className="error-icon">❌</span>
-          <span className="error-text">{error.message}</span>
-          {error.code && <span className="error-code">[{error.code}]</span>}
+    <div className="bg-red-50/60 rounded-2xl p-5 my-4 animate-fade-in">
+      {errors.map((error, idx) => (
+        <div key={idx} className="flex items-start gap-3">
+          <XCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-red-600 text-sm">{error.message}</p>
+            {error.code && <p className="text-xs text-red-400 mt-1">错误代码: {error.code}</p>}
+          </div>
         </div>
       ))}
     </div>
   );
 }
 
+/**
+ * 统一的结构化数据渲染器
+ */
+export function StructuredDataRenderer({ type, data, onAction }) {
+  const components = {
+    subsidy_calc: SubsidyCard,
+    roi_analysis: ROICard,
+    merchant_card: MerchantCard,
+    merchant_list: MerchantList,
+    process_steps: ProcessSteps,
+    table: DataTable,
+    checklist: Checklist,
+    timeline: Timeline,
+    comparison: ComparisonCard,
+    sources: Sources,
+    quick_replies: QuickReplies,
+    action_buttons: ActionButtons,
+    thinking: ThinkingProcess,
+    error: ErrorMessage,
+  };
+
+  const Component = components[type];
+  if (!Component) return null;
+
+  const props = {
+    quick_replies: { replies: data, onSelect: onAction },
+    action_buttons: { buttons: data, onAction },
+    sources: { sources: data },
+    thinking: { logs: data },
+    error: { errors: data },
+    merchant_card: { merchant: data },
+  }[type] || { data };
+
+  return <Component {...props} />;
+}
+
 export default {
   SubsidyCard,
+  ROICard,
+  ComparisonCard,
+  Checklist,
+  Timeline,
   MerchantCard,
   MerchantList,
   ProcessSteps,
@@ -339,4 +703,5 @@ export default {
   ActionButtons,
   ThinkingProcess,
   ErrorMessage,
+  StructuredDataRenderer,
 };

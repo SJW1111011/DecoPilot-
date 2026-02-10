@@ -13,6 +13,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirna
 
 from backend.knowledge.multi_collection_kb import MultiCollectionKB
 
+# 导入异步工具
+try:
+    from backend.core.async_utils import get_async_executor
+    ASYNC_UTILS_AVAILABLE = True
+except ImportError:
+    ASYNC_UTILS_AVAILABLE = False
+
 router = APIRouter(prefix="/knowledge", tags=["知识库"])
 
 
@@ -61,9 +68,19 @@ async def list_collections():
     列出所有可用集合
     """
     kb = get_multi_kb()
+
+    # 使用线程池执行阻塞操作
+    if ASYNC_UTILS_AVAILABLE:
+        executor = get_async_executor()
+        collections = await executor.run_in_thread(kb.list_collections)
+        stats = await executor.run_in_thread(kb.get_all_stats)
+    else:
+        collections = kb.list_collections()
+        stats = kb.get_all_stats()
+
     return {
-        "collections": kb.list_collections(),
-        "stats": kb.get_all_stats(),
+        "collections": collections,
+        "stats": stats,
     }
 
 
@@ -73,7 +90,14 @@ async def get_collection_stats(collection_name: str):
     获取指定集合的统计信息
     """
     kb = get_multi_kb()
-    stats = kb.get_collection_stats(collection_name)
+
+    # 使用线程池执行阻塞操作
+    if ASYNC_UTILS_AVAILABLE:
+        executor = get_async_executor()
+        stats = await executor.run_in_thread(kb.get_collection_stats, collection_name)
+    else:
+        stats = kb.get_collection_stats(collection_name)
+
     if "error" in stats:
         raise HTTPException(status_code=404, detail=stats["error"])
     return stats
@@ -85,16 +109,33 @@ async def add_text(request: AddTextRequest):
     向指定集合添加文本内容
     """
     kb = get_multi_kb()
-    result = kb.add_text(
-        collection_name=request.collection_name,
-        text=request.text,
-        source=request.source,
-        category=request.category,
-        target_user=request.target_user,
-        priority=request.priority,
-        keywords=request.keywords,
-        operator=request.operator,
-    )
+
+    # 使用线程池执行阻塞操作（向量化和存储是CPU/IO密集型）
+    if ASYNC_UTILS_AVAILABLE:
+        executor = get_async_executor()
+        result = await executor.run_in_thread(
+            kb.add_text,
+            collection_name=request.collection_name,
+            text=request.text,
+            source=request.source,
+            category=request.category,
+            target_user=request.target_user,
+            priority=request.priority,
+            keywords=request.keywords,
+            operator=request.operator,
+        )
+    else:
+        result = kb.add_text(
+            collection_name=request.collection_name,
+            text=request.text,
+            source=request.source,
+            category=request.category,
+            target_user=request.target_user,
+            priority=request.priority,
+            keywords=request.keywords,
+            operator=request.operator,
+        )
+
     return {"result": result}
 
 
@@ -132,9 +173,45 @@ async def upload_file(
             tmp_path = tmp.name
 
         try:
-            result = kb.add_pdf(
+            # 使用线程池执行阻塞操作
+            if ASYNC_UTILS_AVAILABLE:
+                executor = get_async_executor()
+                result = await executor.run_in_thread(
+                    kb.add_pdf,
+                    collection_name=collection_name,
+                    pdf_path=tmp_path,
+                    source=f"uploaded:{file.filename}",
+                    category=category,
+                    target_user=target_user,
+                    priority=priority,
+                    keywords=keyword_list,
+                    operator=operator,
+                )
+            else:
+                result = kb.add_pdf(
+                    collection_name=collection_name,
+                    pdf_path=tmp_path,
+                    source=f"uploaded:{file.filename}",
+                    category=category,
+                    target_user=target_user,
+                    priority=priority,
+                    keywords=keyword_list,
+                    operator=operator,
+                )
+        finally:
+            os.unlink(tmp_path)
+    else:
+        # 处理文本文件
+        content = await file.read()
+        text = content.decode("utf-8")
+
+        # 使用线程池执行阻塞操作
+        if ASYNC_UTILS_AVAILABLE:
+            executor = get_async_executor()
+            result = await executor.run_in_thread(
+                kb.add_text,
                 collection_name=collection_name,
-                pdf_path=tmp_path,
+                text=text,
                 source=f"uploaded:{file.filename}",
                 category=category,
                 target_user=target_user,
@@ -142,22 +219,17 @@ async def upload_file(
                 keywords=keyword_list,
                 operator=operator,
             )
-        finally:
-            os.unlink(tmp_path)
-    else:
-        # 处理文本文件
-        content = await file.read()
-        text = content.decode("utf-8")
-        result = kb.add_text(
-            collection_name=collection_name,
-            text=text,
-            source=f"uploaded:{file.filename}",
-            category=category,
-            target_user=target_user,
-            priority=priority,
-            keywords=keyword_list,
-            operator=operator,
-        )
+        else:
+            result = kb.add_text(
+                collection_name=collection_name,
+                text=text,
+                source=f"uploaded:{file.filename}",
+                category=category,
+                target_user=target_user,
+                priority=priority,
+                keywords=keyword_list,
+                operator=operator,
+            )
 
     return {"result": result, "filename": file.filename}
 
@@ -171,12 +243,22 @@ async def search(request: SearchRequest):
     """
     kb = get_multi_kb()
 
-    if request.collection_name:
-        # 搜索指定集合
-        results = kb.search(request.query, request.collection_name, k=request.k)
+    # 使用线程池执行阻塞操作（向量搜索是IO密集型）
+    if ASYNC_UTILS_AVAILABLE:
+        executor = get_async_executor()
+        if request.collection_name:
+            results = await executor.run_in_thread(
+                kb.search, request.query, request.collection_name, k=request.k
+            )
+        else:
+            results = await executor.run_in_thread(
+                kb.search_by_user_type, request.query, request.user_type, k=request.k
+            )
     else:
-        # 按用户类型搜索
-        results = kb.search_by_user_type(request.query, request.user_type, k=request.k)
+        if request.collection_name:
+            results = kb.search(request.query, request.collection_name, k=request.k)
+        else:
+            results = kb.search_by_user_type(request.query, request.user_type, k=request.k)
 
     return {
         "query": request.query,

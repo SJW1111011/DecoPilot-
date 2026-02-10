@@ -37,6 +37,9 @@ class OutputType(str, Enum):
     STREAM_START = "stream_start"      # 流开始
     STREAM_END = "stream_end"          # 流结束
 
+    # 诊断类型
+    EXPERT_DEBUG = "expert_debug"      # 专家系统诊断信息
+
 
 @dataclass
 class Source:
@@ -170,13 +173,25 @@ class OutputFormatter:
         """普通文本输出"""
         return self.format(OutputType.TEXT, {"content": content})
 
-    def thinking(self, logs: List[str]) -> str:
-        """思考过程输出"""
-        return self.format(OutputType.THINKING, {"logs": logs})
+    def thinking(self, logs: List[str], reasoning_type: str = None) -> str:
+        """思考过程输出（兼容前端格式）"""
+        # 前端期望: {"type": "thinking", "content": [...]}
+        output = {
+            "type": "thinking",
+            "content": logs,
+        }
+        if reasoning_type:
+            output["reasoning_type"] = reasoning_type
+        return json.dumps(output, ensure_ascii=False) + "\n"
 
     def answer(self, content: str) -> str:
-        """回答内容输出（流式）"""
-        return self.format(OutputType.ANSWER, {"content": content})
+        """回答内容输出（流式，兼容前端格式）"""
+        # 前端期望: {"type": "answer", "content": "..."}
+        output = {
+            "type": "answer",
+            "content": content,
+        }
+        return json.dumps(output, ensure_ascii=False) + "\n"
 
     def error(self, message: str, code: str = "UNKNOWN") -> str:
         """错误输出"""
@@ -184,6 +199,48 @@ class OutputFormatter:
             "message": message,
             "code": code,
         })
+
+    def expert_debug(self, context: dict) -> str:
+        """专家系统诊断信息输出"""
+        data = {}
+
+        # 阶段上下文
+        stage_ctx = context.get("stage_context")
+        if stage_ctx:
+            data["detected_stage"] = stage_ctx.stage
+            data["stage_confidence"] = stage_ctx.stage_confidence
+            data["emotional_state"] = stage_ctx.emotional_state
+            data["focus_points"] = stage_ctx.focus_points
+            data["deep_need"] = stage_ctx.deep_need
+            data["potential_needs"] = stage_ctx.potential_needs
+
+        # 专家角色
+        expert_role = context.get("expert_role")
+        if expert_role:
+            data["expert_role"] = expert_role.name
+            data["expert_value"] = expert_role.core_value
+        else:
+            data["expert_role"] = None
+            data["expert_value"] = None
+
+        # 阶段转换
+        transition = context.get("stage_transition")
+        if transition:
+            data["stage_transition"] = {
+                "from_stage": transition.from_stage,
+                "to_stage": transition.to_stage,
+                "confidence": transition.confidence,
+                "trigger": transition.trigger,
+            }
+        else:
+            data["stage_transition"] = None
+
+        # 前端期望: {"type": "expert_debug", "data": {...}}
+        output = {
+            "type": "expert_debug",
+            "data": data,
+        }
+        return json.dumps(output, ensure_ascii=False) + "\n"
 
     # === 结构化数据输出方法 ===
 
@@ -233,6 +290,55 @@ class OutputFormatter:
     def table(self, table_data: TableData) -> str:
         """表格数据输出"""
         return self.format(OutputType.TABLE, table_data)
+
+    def table_markdown(self, table_data: TableData) -> str:
+        """
+        将表格数据转换为格式正确的 Markdown 表格字符串
+        用于在回答中嵌入表格
+        """
+        if not table_data.headers or not table_data.rows:
+            return ""
+
+        def escape_cell(cell):
+            """转义单元格中的特殊字符"""
+            s = str(cell)
+            s = s.replace("|", "\\|")   # 转义管道符
+            s = s.replace("\n", " ")     # 换行符替换为空格
+            return s.strip()
+
+        lines = []
+
+        # 标题
+        if table_data.title:
+            lines.append(f"\n**{table_data.title}**\n")
+
+        # 表头
+        headers = [escape_cell(h) for h in table_data.headers]
+        header_line = "| " + " | ".join(headers) + " |"
+        lines.append(header_line)
+
+        # 分隔线（根据列数生成）
+        separator = "| " + " | ".join("---" for _ in table_data.headers) + " |"
+        lines.append(separator)
+
+        # 数据行
+        col_count = len(table_data.headers)
+        for row in table_data.rows:
+            # 确保每行的列数与表头一致，并转义特殊字符
+            cells = []
+            for i in range(col_count):
+                if i < len(row):
+                    cells.append(escape_cell(row[i]))
+                else:
+                    cells.append("")
+            row_line = "| " + " | ".join(cells) + " |"
+            lines.append(row_line)
+
+        # 脚注
+        if table_data.footer:
+            lines.append(f"\n*{table_data.footer}*")
+
+        return "\n".join(lines)
 
     def checklist(self, items: List[ChecklistItem],
                   title: str = "检查清单") -> str:
@@ -351,3 +457,115 @@ def create_decoration_process() -> List[ProcessStep]:
                    tips=["通风至少3个月"],
                    warnings=["入住前做甲醛检测"]),
     ]
+
+
+def format_markdown_table(
+    headers: List[str],
+    rows: List[List[str]],
+    title: Optional[str] = None,
+    footer: Optional[str] = None,
+    alignment: Optional[List[str]] = None,
+) -> str:
+    """
+    生成格式正确的 Markdown 表格
+
+    Args:
+        headers: 表头列表
+        rows: 数据行列表
+        title: 可选的表格标题
+        footer: 可选的表格脚注
+        alignment: 可选的对齐方式列表 ('left', 'center', 'right')
+
+    Returns:
+        格式化的 Markdown 表格字符串
+
+    Example:
+        >>> table = format_markdown_table(
+        ...     headers=["品类", "补贴比例", "上限"],
+        ...     rows=[
+        ...         ["家具", "5%", "2000元"],
+        ...         ["建材", "3%", "1500元"],
+        ...     ],
+        ...     title="补贴政策一览"
+        ... )
+    """
+    if not headers or not rows:
+        return ""
+
+    lines = []
+
+    # 标题
+    if title:
+        lines.append(f"\n**{title}**\n")
+
+    # 表头（转义特殊字符）
+    escaped_headers = [str(h).replace("|", "\\|").replace("\n", " ") for h in headers]
+    header_line = "| " + " | ".join(escaped_headers) + " |"
+    lines.append(header_line)
+
+    # 分隔线（支持对齐）
+    if alignment:
+        separators = []
+        for i, align in enumerate(alignment):
+            if i >= len(headers):
+                break
+            if align == 'center':
+                separators.append(":---:")
+            elif align == 'right':
+                separators.append("---:")
+            else:
+                separators.append("---")
+        # 补齐剩余列
+        separators.extend(["---"] * (len(headers) - len(separators)))
+        separator = "| " + " | ".join(separators) + " |"
+    else:
+        separator = "| " + " | ".join("---" for _ in headers) + " |"
+    lines.append(separator)
+
+    # 数据行
+    for row in rows:
+        # 确保每行的列数与表头一致，并转义特殊字符
+        padded_row = []
+        for i in range(len(headers)):
+            if i < len(row):
+                cell = str(row[i]).replace("|", "\\|").replace("\n", " ")
+                padded_row.append(cell)
+            else:
+                padded_row.append("")
+        row_line = "| " + " | ".join(padded_row) + " |"
+        lines.append(row_line)
+
+    # 脚注
+    if footer:
+        lines.append(f"\n*{footer}*")
+
+    return "\n".join(lines)
+
+
+def format_subsidy_table() -> str:
+    """生成补贴政策表格"""
+    return format_markdown_table(
+        headers=["品类", "补贴比例", "单笔上限", "适用商品"],
+        rows=[
+            ["家具", "5%", "2000元", "沙发、床、餐桌、衣柜、书桌"],
+            ["建材", "3%", "1500元", "瓷砖、地板、涂料、门窗"],
+            ["家电", "4%", "1000元", "空调、冰箱、洗衣机、热水器"],
+            ["软装", "6%", "800元", "窗帘、灯具、地毯、装饰画"],
+            ["智能��居", "8%", "1500元", "智能门锁、智能音箱、安防监控"],
+        ],
+        title="洞居平台补贴政策",
+        footer="每月补贴上限5000元",
+    )
+
+
+def format_merchant_fee_table() -> str:
+    """生成商家费用表格"""
+    return format_markdown_table(
+        headers=["项目", "金额/费率", "说明"],
+        rows=[
+            ["入驻保证金", "5000元", "可退，用于保障消费者权益"],
+            ["平台服务费", "3%", "按成交金额收取"],
+            ["推广最低充值", "1000元", "按效果付费（CPC/CPA）"],
+        ],
+        title="商家费用说明",
+    )

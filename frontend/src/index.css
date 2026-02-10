@@ -1,7 +1,635 @@
+/* ===== 字体导入 ===== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background-color: #e5e7eb; border-radius: 20px; }
+/* ===== CSS 变量 ===== */
+:root {
+  --color-owner-primary: #0c87f2;
+  --color-owner-light: #e0efff;
+  --color-merchant-primary: #1aad7c;
+  --color-merchant-light: #d4f7e6;
+  --sidebar-width: 260px;
+}
+
+/* ===== 基础样式 ===== */
+@layer base {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    font-size: 15px;
+  }
+
+  body {
+    @apply bg-white text-slate-800;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    letter-spacing: 0.01em;
+  }
+
+  ::selection {
+    @apply bg-owner-200/50 text-owner-900;
+  }
+
+  /* 滚动条 — 几乎不可见 */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-200/80 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-300/80;
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(226 232 240 / 0.6) transparent;
+  }
+}
+
+/* ===== 组件样式 ===== */
+@layer components {
+  /* 玻璃态 */
+  .glass {
+    @apply bg-white/80 backdrop-blur-xl;
+  }
+
+  .glass-subtle {
+    @apply bg-white/60 backdrop-blur-lg;
+  }
+
+  /* 新版卡片 v2 — 无边框，背景对比 */
+  .card-v2 {
+    @apply bg-slate-50/80 rounded-2xl shadow-float;
+  }
+
+  .card-v2-interactive {
+    @apply card-v2 transition-all duration-250 ease-smooth;
+    @apply hover:shadow-float-md hover:bg-slate-50 hover:-translate-y-0.5;
+  }
+
+  /* 保留旧 card 类用于兼容，但软化 */
+  .card {
+    @apply bg-white rounded-2xl shadow-float;
+  }
+
+  .card-interactive {
+    @apply card transition-all duration-250 ease-smooth;
+    @apply hover:shadow-float-md hover:-translate-y-0.5;
+  }
+
+  /* 按钮基础 */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2;
+    @apply font-medium rounded-xl;
+    @apply transition-all duration-200 ease-smooth;
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-sm rounded-lg;
+  }
+
+  .btn-md {
+    @apply px-4 py-2.5 text-sm;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-base;
+  }
+
+  /* 业主模式按钮 */
+  .btn-owner {
+    @apply btn bg-owner-500 text-white;
+    @apply hover:bg-owner-600 hover:shadow-glow-owner;
+    @apply active:bg-owner-700 active:scale-[0.98];
+    @apply focus-visible:ring-owner-500;
+  }
+
+  .btn-owner-soft {
+    @apply btn bg-owner-50 text-owner-600;
+    @apply hover:bg-owner-100 hover:text-owner-700;
+    @apply active:bg-owner-200 active:scale-[0.98];
+    @apply focus-visible:ring-owner-500;
+  }
+
+  /* 商家模式按钮 */
+  .btn-merchant {
+    @apply btn bg-merchant-500 text-white;
+    @apply hover:bg-merchant-600 hover:shadow-glow-merchant;
+    @apply active:bg-merchant-700 active:scale-[0.98];
+    @apply focus-visible:ring-merchant-500;
+  }
+
+  .btn-merchant-soft {
+    @apply btn bg-merchant-50 text-merchant-600;
+    @apply hover:bg-merchant-100 hover:text-merchant-700;
+    @apply active:bg-merchant-200 active:scale-[0.98];
+    @apply focus-visible:ring-merchant-500;
+  }
+
+  /* 幽灵按钮 */
+  .btn-ghost {
+    @apply btn bg-transparent text-slate-500;
+    @apply hover:bg-slate-100/80 hover:text-slate-700;
+    @apply active:bg-slate-200 active:scale-[0.98];
+  }
+
+  /* 浮动输入栏 — Gemini 风格药丸 */
+  .input-floating {
+    @apply bg-white rounded-[22px] shadow-float-md;
+    @apply transition-all duration-300 ease-smooth;
+    @apply border border-slate-200/40;
+  }
+
+  .input-floating:focus-within {
+    @apply shadow-input-focus border-owner-200/50;
+  }
+
+  .input-floating.merchant:focus-within {
+    @apply shadow-input-focus-merchant border-merchant-200/50;
+  }
+
+  /* 毛玻璃侧边栏 */
+  .sidebar-glass {
+    @apply bg-slate-25 backdrop-blur-xl;
+    @apply border-r border-slate-100;
+  }
+
+  /* 输入框 */
+  .input {
+    @apply w-full px-4 py-3 rounded-xl;
+    @apply bg-white border border-slate-200;
+    @apply text-slate-800 placeholder-slate-400;
+    @apply transition-all duration-200 ease-smooth;
+    @apply focus:outline-none focus:border-owner-400 focus:ring-4 focus:ring-owner-500/10;
+  }
+
+  .input-merchant {
+    @apply input focus:border-merchant-400 focus:ring-merchant-500/10;
+  }
+
+  /* 用户消息 — 右对齐药丸 */
+  .message-user-pill {
+    @apply relative px-5 py-3 rounded-[20px] rounded-br-md;
+    @apply bg-gradient-to-br from-owner-500 to-owner-600 text-white;
+    @apply shadow-soft text-[0.9375rem];
+    max-width: 75%;
+    line-height: 1.65;
+  }
+
+  .message-user-pill-merchant {
+    @apply relative px-5 py-3 rounded-[20px] rounded-br-md;
+    @apply bg-gradient-to-br from-merchant-500 to-merchant-600 text-white;
+    @apply shadow-soft text-[0.9375rem];
+    max-width: 75%;
+    line-height: 1.65;
+  }
+
+  /* 用户消息内部药丸（max-width 由外层容器控制） */
+  .message-user-pill-inner {
+    @apply relative px-5 py-3 rounded-[20px] rounded-br-md;
+    @apply bg-gradient-to-br from-owner-500 to-owner-600 text-white;
+    @apply shadow-soft text-[0.9375rem];
+    line-height: 1.65;
+  }
+
+  .message-user-pill-merchant-inner {
+    @apply relative px-5 py-3 rounded-[20px] rounded-br-md;
+    @apply bg-gradient-to-br from-merchant-500 to-merchant-600 text-white;
+    @apply shadow-soft text-[0.9375rem];
+    line-height: 1.65;
+  }
+
+  /* 助手消息 — 无气泡无边框，纯排版 */
+  .message-assistant-flow {
+    @apply relative;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* 思考过程 — 极简内联折叠 */
+  .thinking-inline {
+    @apply relative pl-3.5 my-3;
+    @apply border-l-2 border-thinking-200;
+  }
+
+  .thinking-inline-header {
+    @apply flex items-center gap-2 py-1 cursor-pointer;
+    @apply text-sm text-thinking-400 hover:text-thinking-500;
+    @apply transition-colors duration-200;
+  }
+
+  .thinking-inline-content {
+    @apply pt-2 pb-1 space-y-1.5;
+  }
+
+  /* 打字指示器 */
+  .typing-indicator {
+    @apply flex items-center gap-1.5 py-3;
+  }
+
+  .typing-dot {
+    @apply w-[5px] h-[5px] rounded-full bg-slate-300;
+    animation: typing-bounce 1.4s ease-in-out infinite;
+  }
+
+  .typing-dot:nth-child(1) { animation-delay: 0s; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  /* 骨架屏 */
+  .skeleton {
+    @apply relative overflow-hidden bg-slate-200 rounded;
+  }
+
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 bg-shimmer;
+    animation: shimmer 2s linear infinite;
+  }
+
+  /* 徽章 */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-owner {
+    @apply badge bg-owner-100 text-owner-700;
+  }
+
+  .badge-merchant {
+    @apply badge bg-merchant-100 text-merchant-700;
+  }
+
+  .badge-thinking {
+    @apply badge bg-thinking-100 text-thinking-700;
+  }
+
+  /* 分割线 */
+  .divider {
+    @apply h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent;
+  }
+
+  /* 工具提示 */
+  .tooltip {
+    @apply absolute z-50 px-2.5 py-1.5 text-xs font-medium;
+    @apply bg-slate-800 text-white rounded-lg;
+    @apply opacity-0 invisible transition-all duration-200;
+    @apply pointer-events-none whitespace-nowrap;
+    @apply shadow-soft-md;
+    transform: translateY(2px);
+  }
+
+  .tooltip-trigger:hover .tooltip {
+    @apply opacity-100 visible;
+    transform: translateY(0);
+  }
+}
+
+/* ===== 工具类 ===== */
+@layer utilities {
+  /* 隐藏滚动条 */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 文字渐变 */
+  .text-gradient-owner {
+    @apply bg-gradient-to-r from-owner-500 via-owner-500 to-owner-400 bg-clip-text text-transparent;
+  }
+
+  .text-gradient-merchant {
+    @apply bg-gradient-to-r from-merchant-600 via-merchant-500 to-merchant-400 bg-clip-text text-transparent;
+  }
+
+  /* 安全区域 */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  /* 行数限制 */
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* 动画延迟 */
+  .animation-delay-100 { animation-delay: 100ms; }
+  .animation-delay-200 { animation-delay: 200ms; }
+  .animation-delay-300 { animation-delay: 300ms; }
+  .animation-delay-400 { animation-delay: 400ms; }
+}
+
+/* ===== Prose 样式 — 精致排版 ===== */
+.prose-chat {
+  @apply text-slate-600;
+  font-size: 0.9375rem;
+  line-height: 1.8;
+}
+
+.prose-chat p {
+  @apply my-3 first:mt-0 last:mb-0;
+}
+
+.prose-chat h1, .prose-chat h2, .prose-chat h3, .prose-chat h4 {
+  @apply font-semibold text-slate-800 mt-6 mb-3 first:mt-0;
+}
+
+.prose-chat h1 { @apply text-xl; }
+.prose-chat h2 { @apply text-lg; }
+.prose-chat h3 { @apply text-base; }
+
+.prose-chat ul, .prose-chat ol {
+  @apply my-3 pl-5 space-y-1.5;
+}
+
+.prose-chat ul { @apply list-disc; }
+.prose-chat ol { @apply list-decimal; }
+
+.prose-chat li {
+  @apply text-slate-600;
+  line-height: 1.75;
+}
+
+.prose-chat li::marker {
+  @apply text-slate-300;
+}
+
+/* 嵌套列表样式 */
+.prose-chat li > ul,
+.prose-chat li > ol {
+  @apply mt-1.5 mb-0;
+}
+
+/* 列表项中的加粗文字 */
+.prose-chat li strong {
+  @apply text-slate-700;
+}
+
+/* 加粗段落作为分组标题 */
+.prose-chat > p > strong:only-child,
+.prose-chat > p > strong:first-child:last-child {
+  @apply inline-block mt-4 mb-1 text-slate-800;
+}
+
+/* 紧跟在加粗标题后的列表 */
+.prose-chat > p + ul {
+  @apply mt-1;
+}
+
+.prose-chat code {
+  @apply px-1.5 py-0.5 rounded-md;
+  @apply bg-slate-100 text-slate-600 text-sm font-mono;
+}
+
+.prose-chat pre {
+  @apply my-4 p-4 rounded-xl overflow-x-auto;
+  @apply bg-slate-800 text-slate-100;
+}
+
+.prose-chat pre code {
+  @apply bg-transparent text-inherit p-0;
+}
+
+.prose-chat a {
+  @apply text-owner-500 hover:text-owner-600 underline decoration-owner-200 hover:decoration-owner-400;
+  @apply transition-colors;
+}
+
+.prose-chat blockquote {
+  @apply my-4 pl-4 border-l-2 border-slate-200 italic text-slate-400;
+}
+
+/* ===== 表格样式（对齐 Claude/ChatGPT 等大厂做法）===== */
+
+/* 表格容器 — 卡片化 + 水平滚动 */
+.prose-chat .table-wrapper {
+  @apply my-5 rounded-xl overflow-hidden;
+  @apply bg-white;
+  border: 1px solid theme('colors.slate.100');
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: theme('colors.slate.200') transparent;
+}
+
+.prose-chat .table-wrapper::-webkit-scrollbar {
+  height: 5px;
+}
+
+.prose-chat .table-wrapper::-webkit-scrollbar-track {
+  background: theme('colors.slate.50');
+}
+
+.prose-chat .table-wrapper::-webkit-scrollbar-thumb {
+  background-color: theme('colors.slate.200');
+  border-radius: 3px;
+}
+
+.prose-chat table {
+  @apply w-full text-sm border-collapse;
+  table-layout: fixed;
+  min-width: 400px;
+}
+
+.prose-chat thead {
+  @apply bg-slate-50;
+}
+
+.prose-chat th {
+  @apply px-4 py-3 text-left font-semibold text-slate-600 text-xs;
+  @apply border-b-2 border-slate-100;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prose-chat tbody tr {
+  @apply transition-colors duration-150;
+}
+
+.prose-chat tbody tr:not(:last-child) td {
+  @apply border-b border-slate-50;
+}
+
+.prose-chat tbody tr:hover {
+  @apply bg-slate-50/50;
+}
+
+.prose-chat td {
+  @apply px-4 py-3 text-slate-600 text-sm;
+  vertical-align: top;
+  line-height: 1.75;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* 第一列：标题列 */
+.prose-chat td:first-child {
+  @apply font-medium text-slate-700;
+}
+
+.prose-chat th:first-child,
+.prose-chat td:first-child {
+  @apply pl-5;
+}
+
+.prose-chat th:last-child,
+.prose-chat td:last-child {
+  @apply pr-5;
+}
+
+.prose-chat td code {
+  @apply px-1.5 py-0.5 rounded bg-slate-100 text-xs;
+}
+
+/* 自适应列宽：2列 */
+.prose-chat table:has(th:nth-child(2):last-child) th:first-child,
+.prose-chat table:has(td:nth-child(2):last-child) td:first-child {
+  width: 35%;
+}
+
+/* 自适应列宽：3列均分 */
+.prose-chat table:has(th:nth-child(3):last-child) th,
+.prose-chat table:has(td:nth-child(3):last-child) td {
+  width: 33.33%;
+}
+
+/* 自适应列宽：4列+ 第一列固定 */
+.prose-chat table:has(th:nth-child(4)) th:first-child,
+.prose-chat table:has(td:nth-child(4)) td:first-child {
+  width: 120px;
+  min-width: 120px;
+}
+
+/* 5列+：更紧凑，确保可滚动 */
+.prose-chat table:has(th:nth-child(5)) {
+  min-width: 600px;
+}
+
+.prose-chat table:has(th:nth-child(5)) th,
+.prose-chat table:has(td:nth-child(5)) td {
+  @apply px-3;
+}
+
+.prose-chat strong {
+  @apply font-semibold text-slate-700;
+}
+
+.prose-chat em {
+  @apply italic text-slate-500;
+}
+
+/* ===== 动画关键帧 ===== */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.3;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 0.8;
+  }
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 100%;
+  }
+
+  html {
+    font-size: 14px;
+  }
+
+  .prose-chat {
+    font-size: 0.875rem;
+  }
+
+  .prose-chat table {
+    @apply text-xs;
+    min-width: 320px;
+  }
+
+  .prose-chat td,
+  .prose-chat th {
+    @apply px-3 py-2;
+  }
+
+  .prose-chat table {
+    table-layout: auto;
+  }
+
+  .input-floating {
+    @apply rounded-[18px];
+  }
+}
+
+/* ===== 打印样式 ===== */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* ===== 字体大小设置 ===== */
+.font-size-small .prose-chat {
+  font-size: 0.8125rem;
+  line-height: 1.75;
+}
+
+.font-size-small .message-user-pill,
+.font-size-small .message-user-pill-merchant,
+.font-size-small .message-user-pill-inner,
+.font-size-small .message-user-pill-merchant-inner {
+  font-size: 0.8125rem;
+}
+
+.font-size-large .prose-chat {
+  font-size: 1.0625rem;
+  line-height: 1.85;
+}
+
+.font-size-large .message-user-pill,
+.font-size-large .message-user-pill-merchant,
+.font-size-large .message-user-pill-inner,
+.font-size-large .message-user-pill-merchant-inner {
+  font-size: 1.0625rem;
+}

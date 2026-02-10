@@ -1,0 +1,88 @@
+# DecoPilot Docker Compose 配置
+# 支持一键部署完整服务栈
+
+version: '3.8'
+
+services:
+  # DecoPilot API 服务
+  decopilot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: decopilot-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # 运行环境
+      - ENV=${ENV:-development}
+      - DEBUG=${DEBUG:-true}
+      # DashScope API (通义千问)
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      # CORS 配置
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - TRUSTED_HOSTS=${TRUSTED_HOSTS:-*}
+      # 记忆系统持久化
+      - MEMORY_PERSIST=true
+    volumes:
+      # 持久化数据
+      - decopilot-data:/app/data
+      # 日志
+      - decopilot-logs:/app/logs
+      # 知识库数据
+      - ./chroma_db:/app/chroma_db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - decopilot-network
+
+  # 前端服务 (可选)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: decopilot-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://decopilot:8000
+    depends_on:
+      - decopilot
+    networks:
+      - decopilot-network
+    profiles:
+      - with-frontend
+
+  # Redis 缓存 (可选，用于生产环境)
+  redis:
+    image: redis:7-alpine
+    container_name: decopilot-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - decopilot-network
+    profiles:
+      - with-redis
+
+# 数据卷
+volumes:
+  decopilot-data:
+    driver: local
+  decopilot-logs:
+    driver: local
+  redis-data:
+    driver: local
+
+# 网络
+networks:
+  decopilot-network:
+    driver: bridge

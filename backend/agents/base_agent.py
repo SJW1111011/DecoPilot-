@@ -21,7 +21,7 @@ from langchain_community.tools import DuckDuckGoSearchRun
 
 import config_data as config
 from file_history_store import get_history
-from backend.core.singleton import get_knowledge_base
+from backend.knowledge.multi_collection_kb import MultiCollectionKB
 
 
 class BaseAgent(ABC):
@@ -38,8 +38,7 @@ class BaseAgent(ABC):
             os.environ["DASHSCOPE_API_KEY"] = config.dashscope_api_key
 
         self.user_type = user_type
-        # 使用单例知识库，避免重复创建
-        self.multi_kb = get_knowledge_base()
+        self.multi_kb = MultiCollectionKB()
         self.chat_model = ChatTongyi(model=config.chat_model_name)
         self.search_tool = DuckDuckGoSearchRun()
         self.enable_search = True
@@ -141,19 +140,10 @@ class BaseAgent(ABC):
             return value["input"]
 
         def format_for_prompt(value):
-            # 安全获取嵌套值，处理流式处理中的中间状态
-            input_data = value.get("input", {})
-            if isinstance(input_data, dict):
-                input_val = input_data.get("input", "")
-                history_val = input_data.get("history", [])
-            else:
-                input_val = input_data
-                history_val = []
-            
             return {
-                "input": input_val,
-                "context": value.get("context", ""),
-                "history": history_val,
+                "input": value["input"]["input"],
+                "context": value["context"],
+                "history": value["input"]["history"],
                 "current_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             }
 
@@ -164,17 +154,12 @@ class BaseAgent(ABC):
             | StrOutputParser()
         )
 
-        def safe_format_context(x):
-            """安全格式化上下文，处理流式处理中的中间状态"""
-            docs = x.get("retrieved_docs", [])
-            return self._format_documents(docs) if docs else ""
-
         chain = (
             {
                 "input": RunnablePassthrough(),
                 "retrieved_docs": RunnableLambda(format_for_retriever) | retriever,
             }
-            | RunnablePassthrough.assign(context=safe_format_context)
+            | RunnablePassthrough.assign(context=lambda x: self._format_documents(x["retrieved_docs"]))
             | RunnablePassthrough.assign(answer=gen_chain)
         )
 
